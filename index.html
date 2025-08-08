@@ -43,10 +43,10 @@
             <p id="error-message" class="text-red-500 text-sm mt-2"></p>
         </div>
 
-        <!-- Bagian Alamat dan Peta -->
+        <!-- Bagian Alamat, Kamera, dan Peta -->
         <div class="mb-8 p-6 bg-gray-50 rounded-lg border border-gray-200">
-            <h2 class="text-xl font-semibold mb-4">Informasi Lokasi</h2>
-            <div class="flex flex-col md:flex-row gap-4 items-end">
+            <h2 class="text-xl font-semibold mb-4">Informasi Lokasi & Bukti Foto</h2>
+            <div class="flex flex-col md:flex-row gap-4 items-end mb-4">
                 <div class="flex-grow">
                     <label for="address" class="block text-sm font-medium text-gray-700 mb-1">Alamat Tagihan</label>
                     <input type="text" id="address" placeholder="Masukkan alamat atau dapatkan lokasi otomatis" class="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -61,6 +61,15 @@
                 <h3 class="text-lg font-medium text-gray-700 mb-2">Lokasi di Peta:</h3>
             </div>
             <p id="location-status" class="text-sm mt-2 text-gray-500"></p>
+
+            <div class="mt-4">
+                <label for="item-image" class="block text-sm font-medium text-gray-700 mb-1">Ambil Foto Bukti</label>
+                <input type="file" id="item-image" accept="image/*" capture="camera" class="w-full px-3 py-2 border rounded-lg bg-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                <div id="image-preview-container" class="mt-4 hidden">
+                    <h3 class="text-lg font-medium text-gray-700 mb-2">Pratinjau Foto:</h3>
+                    <img id="image-preview" class="w-full h-auto rounded-lg shadow-md max-h-64 object-contain">
+                </div>
+            </div>
         </div>
 
         <!-- Daftar item tagihan -->
@@ -82,6 +91,7 @@
     <script>
         // Array untuk menyimpan semua transaksi tagihan
         let transactions = [];
+        let currentImageBase64 = null; // Variabel untuk menyimpan gambar sementara
 
         // Mendapatkan elemen HTML
         const itemForm = document.getElementById('item-form');
@@ -93,11 +103,14 @@
         const clearButton = document.getElementById('clear-button');
         const errorMessage = document.getElementById('error-message');
         
-        // Elemen untuk fitur lokasi
+        // Elemen untuk fitur lokasi dan kamera
         const getLocationBtn = document.getElementById('get-location-btn');
         const addressInput = document.getElementById('address');
         const mapContainer = document.getElementById('map-container');
         const locationStatus = document.getElementById('location-status');
+        const itemImageInput = document.getElementById('item-image');
+        const imagePreview = document.getElementById('image-preview');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
 
         // Fungsi untuk memformat mata uang Rupiah
         const formatRupiah = (number) => {
@@ -130,14 +143,21 @@
                 transactions.forEach((transaction, index) => {
                     let transactionTotal = 0;
                     
-                    // Tampilkan alamat untuk setiap transaksi
-                    const transactionHeader = document.createElement('div');
-                    transactionHeader.className = 'bg-gray-100 p-4 rounded-lg mb-2 mt-4';
-                    transactionHeader.innerHTML = `
+                    // Tampilkan alamat dan gambar untuk setiap transaksi
+                    const transactionBlock = document.createElement('div');
+                    transactionBlock.className = 'bg-gray-100 p-4 rounded-lg mb-2 mt-4';
+                    
+                    let imageHtml = '';
+                    if (transaction.image) {
+                        imageHtml = `<img src="${transaction.image}" class="w-full h-auto rounded-lg shadow-md mt-2 max-h-64 object-contain" alt="Bukti Foto Transaksi">`;
+                    }
+                    
+                    transactionBlock.innerHTML = `
                         <h3 class="text-md font-semibold text-gray-700">Transaksi #${index + 1}</h3>
                         <p class="text-sm text-gray-600">Alamat: ${transaction.address}</p>
+                        ${imageHtml}
                     `;
-                    billingSummaryDiv.appendChild(transactionHeader);
+                    billingSummaryDiv.appendChild(transactionBlock);
 
                     // Buat tabel untuk item dalam transaksi ini
                     const table = document.createElement('table');
@@ -184,6 +204,24 @@
             grandTotalSpan.textContent = formatRupiah(grandTotal);
         };
 
+        // Event listener untuk input kamera
+        itemImageInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    currentImageBase64 = event.target.result;
+                    imagePreview.src = currentImageBase64;
+                    imagePreviewContainer.classList.remove('hidden');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                currentImageBase64 = null;
+                imagePreview.src = '';
+                imagePreviewContainer.classList.add('hidden');
+            }
+        });
+
         // Event listener untuk form
         itemForm.addEventListener('submit', (e) => {
             e.preventDefault(); // Mencegah form untuk reload halaman
@@ -202,6 +240,7 @@
             // Buat objek transaksi baru
             const newTransaction = {
                 address: address,
+                image: currentImageBase64, // Tambahkan gambar ke transaksi
                 items: [{ name, qty, price }]
             };
             transactions.push(newTransaction);
@@ -211,6 +250,12 @@
             itemQtyInput.value = '1';
             itemPriceInput.value = '';
             errorMessage.textContent = ''; // Hapus pesan error
+            
+            // Bersihkan input gambar dan pratinjau
+            itemImageInput.value = null;
+            currentImageBase64 = null;
+            imagePreview.src = '';
+            imagePreviewContainer.classList.add('hidden');
 
             renderList(); // Perbarui tampilan daftar
             saveTransactions(); // Simpan perubahan ke Local Storage
@@ -226,6 +271,10 @@
             mapContainer.innerHTML = '';
             mapContainer.classList.add('hidden');
             locationStatus.textContent = '';
+            itemImageInput.value = null;
+            currentImageBase64 = null;
+            imagePreview.src = '';
+            imagePreviewContainer.classList.add('hidden');
         });
 
         // Event listener untuk tombol 'Dapatkan Lokasi'
